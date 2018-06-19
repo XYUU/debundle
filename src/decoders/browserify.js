@@ -35,7 +35,7 @@ function browserifyDecoder(moduleArrayAST) {
 
     // Extract the identifier used by the module within the bundle
     let id = moduleDescriptor.key.value;
-    console.log(`* Discovered module ${id}`);
+    // console.log(`* Discovered module ${id}`);
 
     if (moduleDescriptor.value.type !== 'ArrayExpression') {
       throw new Error(`Module ${id} has a valid key, but maps to something that isn't an array.`);
@@ -43,22 +43,23 @@ function browserifyDecoder(moduleArrayAST) {
 
     // Extract the function that wraps the module.
     let moduleFunction = moduleDescriptor.value.elements[0];
-    console.log(`* Extracted module code for ${id}`);
+    // console.log(`* Extracted module code for ${id}`);
 
     // Extract the lookup table for mapping module identifier to its name.
     let moduleLookup = moduleDescriptor.value.elements[1];
     if (moduleLookup.type !== 'ObjectExpression') {
       throw new Error(`Module ${id} has a valid key and code, but the 2nd argument passed to the module (what is assumed to be the lookup table) isn't an object.`);
     }
-    console.log(`* Extracted module lookup table for ${id}`);
+    // console.log(`* Extracted module lookup table for ${id}`);
 
     // Using the ast, create the lookup table. This maps module name to identitfier.
     // To be clear, this just converts the 2nd array arg's AST to a native javascript object.
     let lookupTable = moduleLookup.properties.reduce((acc, i) => {
-      acc[i.key.value] = i.value.value;
+      let key = i.key.value||i.key.name;
+      acc[key] = i.value.value;
       return acc;
     }, {});
-    console.log(`* Calculated module lookup table for ${id}`);
+    // console.log(`* Calculated module lookup table for ${id}`);
 
     // Determine the name of the require function. In unminified bundles it's `__webpack_require__`.
     let requireFunctionIdentifier = 'require';

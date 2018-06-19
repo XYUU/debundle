@@ -105,6 +105,26 @@ if (config.type === 'browserify') {
 }
 
 
+// Assemble the file structure on disk.
+let map = {}, pathMapping = {};
+for (let i = 0; i < modules.length; i++) {
+  const m = modules[i];
+  map[m.id] = { module: m, tree: null };
+  const lookup = m.lookup;
+  for (let key in lookup) {
+    const id = lookup[key], value = pathMapping[id];
+    if (!value || key.length > value.length) {
+      pathMapping[id] = key;
+    }
+  }
+}
+
+const { makeModuleTree, printModuleTree } = require('./utils/getModulePath');
+const Arboreal = require('arboreal');
+// Assemble a tree of modules starting at the entry point.
+let tree = new Arboreal();
+makeModuleTree(map, config.entryPoint, tree);
+// printModuleTree(tree);
 
 // ------------------------------------------------------------------------------
 // Transform the module id in each require call into a relative path to the module.
@@ -113,7 +133,7 @@ if (config.type === 'browserify') {
 
 console.log('* Reassembling requires...');
 const transformRequires = require('./transformRequires');
-modules = transformRequires(modules, config.knownPaths, config.entryPoint, config.type, config.replaceRequires);
+modules = transformRequires(map, tree, pathMapping, modules, config.knownPaths, config.entryPoint, config.type, config.replaceRequires);
 
 // ------------------------------------------------------------------------------
 // Take the array of modules and figure out where to put each module on disk.
@@ -123,6 +143,8 @@ modules = transformRequires(modules, config.knownPaths, config.entryPoint, confi
 console.log('* Resolving files...');
 const lookupTableResolver = require('./lookupTable');
 const files = lookupTableResolver(
+  tree,
+  pathMapping,
   modules,
   config.knownPaths,
   config.entryPoint,
@@ -133,7 +155,14 @@ const files = lookupTableResolver(
 // ------------------------------------------------------------------------------
 // Finally, write the bundle to disk in the specified output location.
 // ------------------------------------------------------------------------------
+const { writeToDisk, writeFile } = require('./writeToDisk');
+writeFile(path.join(outputLocation, 'debundle.txt'), files.map(file => {
+  let text = `"${file.id}":"${file.filePath}"`;
+  console.log(text);
+  return text;
+}).join('\r\n'));
 
 console.log('* Writing to disk...');
-const writeToDisk = require('./writeToDisk');
-writeToDisk(files);
+writeToDisk(files).then(()=>{
+  console.log("写入完成");
+});

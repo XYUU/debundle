@@ -47,13 +47,26 @@ function defaultExportData(code) {
 
 function writeFile(filePath, contents) {
   console.log(`* Writing file ${filePath}`);
-  return fs.writeFileSync(filePath, contents);
+  let directory = path.dirname(filePath);
+  if (fs.existsSync(directory)) {
+    return fs.writeFileSync(`${path.normalize(filePath)}`, contents);
+  } else {
+    console.log(`* ${directory} doesn't exist, creating...`);
+    return new Promise((resolve, reject) => {
+      mkdirp(directory, (err, resp) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(fs.writeFileSync(`${filePath}`, contents));
+        }
+      });
+    });
+  }
 }
 
 function writeToDisk(files) {
-  return Promise.all(files.map(({filePath, code}) => {
-    let directory = path.dirname(filePath);
 
+  return Promise.all(files.map(({ filePath, code }) => {
     // Any modules that are wrapped in a function (because they were bundled code) should be
     // collapsed with the wrapping funtion removed.
     if (code.body && code.body.type === 'BlockStatement') {
@@ -66,25 +79,20 @@ function writeToDisk(files) {
         code.type === 'Program' ? code : defaultExportData(code), // render the wrapping function's data or prepend non-function data with module.exports
         { format: { indent: { style: '  ' } } } // 2 space indentation
       );
-    } catch(e) {
+    } catch (e) {
       throw new Error(`* Couldn't parse ast to file for ${filePath}: ${e}`);
     }
-
-    if (fs.existsSync(directory)) {
-      return writeFile(`${path.normalize(filePath)}.js`, code);
-    } else {
-      console.log(`* ${directory} doesn't exist, creating...`);
-      return new Promise((resolve, reject) => {
-        mkdirp(directory, (err, resp) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(writeFile(`${filePath}.js`, code));
-          }
-        });
-      });
+    let extname = path.extname(filePath);
+    if (!extname) {
+      filePath = `${filePath}.js`;
+    }else{
+      extname = extname.toLowerCase();
+      if(extname !== '.js' && extname !== '.json'){
+        filePath = `${filePath}.js`;
+      }
     }
+    writeFile(filePath, code);
   }));
 }
 
-module.exports = writeToDisk;
+module.exports = { writeToDisk, writeFile };

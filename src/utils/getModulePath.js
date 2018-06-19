@@ -1,27 +1,32 @@
-const Arboreal = require('arboreal');
 const archy = require('archy');
-const MAX_RECURSION_DEPTH = 100;
+const MAX_RECURSION_DEPTH = 1500;
 
-function makeModuleTree(modules, moduleId, tree=new Arboreal(), depth=0) {
-  let mod = modules.find(m => m.id === moduleId);
-  if (!mod) {
-    throw new Error(`Module ${mod.id} cannot be found in the module array.`);
+function makeModuleTree(map, moduleId, tree, depth = 0) {
+  let value = map[moduleId];
+  if (!value) {
+    throw new Error(`Module ${moduleId} cannot be found in the module array.`);
   }
-
+  let mod = value.module;
   tree.data = mod;
   tree.id = mod.id;
 
+  if (value.tree) {
+    // console.warn(`发现循环依赖${moduleId}深度${depth}`);
+    return;
+  } else {
+    value.tree = tree;
+  }
   if (depth > MAX_RECURSION_DEPTH) {
-    // console.warn('* Hit max recursion depth while making tree, tree may be incomplete...');
+    console.warn('* Hit max recursion depth while making tree, tree may be incomplete...');
     return
   }
 
   for (let key in mod.lookup) {
-    let mm = modules.find(m => m.id === mod.lookup[key]);
+    let id = mod.lookup[key], mm = map[id];
     tree.appendChild(mm, mm.id);
     makeModuleTree(
-      modules,
-      mod.lookup[key],
+      map,
+      id,
       tree.children[tree.children.length - 1],
       ++depth
     );
@@ -31,13 +36,13 @@ function makeModuleTree(modules, moduleId, tree=new Arboreal(), depth=0) {
 }
 
 // Print a module tree. Properly handles circular references too!
-function printModuleTree(tree, maxDepth=10) {
-  function treeWalker(node, depth=0) {
+function printModuleTree(tree, maxDepth = 10) {
+  function treeWalker(node, depth = 0) {
     if (depth >= maxDepth) {
       return '(and more...)';
     } else if (node.children) {
       depth += 1;
-      return {label: node.id.toString(), nodes: node.children.map(i => treeWalker(i, depth))};
+      return { label: node.id.toString(), nodes: node.children.map(i => treeWalker(i, depth)) };
     } else {
       // leaf node
       return node.id.toString();
@@ -57,10 +62,10 @@ function printModuleTree(tree, maxDepth=10) {
 function getAllPathsToModule(
   tree,
   moduleId,
-  knownPaths={},
+  knownPaths = {},
 
   // A stack of modules that that have been traversed in this context
-  stack=[{id: tree.id, path: knownPaths[tree.id] || './index'}]
+  stack = [{ id: tree.id, path: knownPaths[tree.id] || './index' }]
 ) {
   // console.trace('new node in stack', stack, tree.id);
   let completeEvents = [], incompleteEvents = [];
@@ -77,7 +82,7 @@ function getAllPathsToModule(
     // stack.
     let stackContainsDuplicateIds = new Set(newStack.map(i => i.id)).size !== newStack.length;
     if (stackContainsDuplicateIds) {
-      console.warn(`In this current stack, ${JSON.stringify(newStack)} module ${newStack[newStack.length - 1].id} has previously been required in. Marking incomplete stack.`);
+      // console.warn(`In this current stack, ${JSON.stringify(newStack)} module ${newStack[newStack.length - 1].id} has previously been required in. Marking incomplete stack.`);
       incompleteEvents.push(newStack);
       return
     }
@@ -90,7 +95,7 @@ function getAllPathsToModule(
     }
 
     if (child.children.length > 0) {
-      let {completeEvents: ce, incompleteEvents: ie} = getAllPathsToModule(
+      let { completeEvents: ce, incompleteEvents: ie } = getAllPathsToModule(
         child,
         moduleId,
         knownPaths,
@@ -105,7 +110,7 @@ function getAllPathsToModule(
     }
   });
 
-  return {completeEvents, incompleteEvents};
+  return { completeEvents, incompleteEvents };
 }
 
 function reverseObject(obj) {
@@ -117,7 +122,7 @@ function reverseObject(obj) {
 
 
 module.exports = {
-  default: makeModuleTree,
+  makeModuleTree,
   getAllPathsToModule,
   printModuleTree,
 };
@@ -125,14 +130,14 @@ module.exports = {
 
 if (require.main === module) {
   const tree = makeModuleTree([
-    {id: 1, code: null, lookup: {'./foo': 2, 'uuid': 3}},
-    {id: 2, code: null, lookup: {'./bar/baz': 4}},
-    {id: 3, code: null, lookup: {}},
-    {id: 4, code: null, lookup: {'uuid': 3, '../hello': 5}},
-    {id: 5, code: null, lookup: {}},
+    { id: 1, code: null, lookup: { './foo': 2, 'uuid': 3 } },
+    { id: 2, code: null, lookup: { './bar/baz': 4 } },
+    { id: 3, code: null, lookup: {} },
+    { id: 4, code: null, lookup: { 'uuid': 3, '../hello': 5 } },
+    { id: 5, code: null, lookup: {} },
   ], 1 /* entry point */);
 
-  let output = getAllPathsToModule(tree, 4, {1: './hello/world'});
+  let output = getAllPathsToModule(tree, 4, { 1: './hello/world' });
   output.completeEvents.forEach(i => console.log('complete>', i));
   output.incompleteEvents.forEach(i => console.log('incomplete>', i));
 }

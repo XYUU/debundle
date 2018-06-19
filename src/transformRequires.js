@@ -15,14 +15,17 @@ const getModuleLocation = require('./utils/getModuleLocation');
 // Also takes an optional argument `knownPaths`, which is a key value mapping where key is a module
 // id and the value is the patht to that module. No `.js` needed. Ie, {1: '/path/to/my/module'}
 function transformRequires(
+  map,
+  tree,
+  pathMapping,
   modules,
-  knownPaths={},
+  knownPaths = {},
   entryPointModuleId,
-  type="browserify",
+  type = "browserify",
   // If true, replace identifiers in the AST that map to require with the identifier `require`
   // If false, add to the top of the AST a `const require = n;` where n is the identifier that maps
   // to require in the module. See README for a better explaination.
-  replaceRequires="inline"
+  replaceRequires = "inline"
 ) {
   return modules.map(mod => {
     let moduleDescriptor = mod.code.body;
@@ -63,11 +66,10 @@ function transformRequires(
 
                 // If a module id is in the require, then do the require.
                 if (node.arguments[0].type === 'Literal') {
-                  const moduleToRequire = modules.find(i => i.id === node.arguments[0].value);
-
+                  const value = map[node.arguments[0].value], moduleToRequire = value.module;
                   // FIXME:
                   // In the spotify bundle someone did a require(null)? What is that supposed to do?
-                  if (!moduleToRequire) {
+                  if (!value) {
                     // throw new Error(`Module ${node.arguments[0].value} cannot be found, but another module (${mod.id}) requires it in.`);
                     console.warn(`Module ${node.arguments[0].value} cannot be found, but another module (${mod.id}) requires it in.`);
                     return node;
@@ -76,9 +78,9 @@ function transformRequires(
                   // Get a relative path from the current module to the module to require in.
                   let moduleLocation = path.relative(
                     // This module's path
-                    path.dirname(getModuleLocation(modules, mod, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ true, entryPointModuleId)),
+                    path.dirname(getModuleLocation(tree, mod, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ true, entryPointModuleId, pathMapping)),
                     // The module to import relative to the current module
-                    getModuleLocation(modules, moduleToRequire, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ false, entryPointModuleId)
+                    getModuleLocation(tree, moduleToRequire, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ false, entryPointModuleId, pathMapping)
                   );
 
                   // If the module path references a node_module, then remove the node_modules prefix
@@ -99,7 +101,7 @@ function transformRequires(
                     } : requireFunctionIdentifier,
                     arguments: [
                       // Substitute in the module location on disk
-                      {type: 'Literal', value: moduleLocation, raw: moduleLocation},
+                      { type: 'Literal', value: moduleLocation, raw: moduleLocation },
                       ...node.arguments.slice(1),
                     ],
                   };
@@ -139,7 +141,7 @@ function transformRequires(
           // ie, `const n = require;`
           console.log(`* Aliasing ${requireFunctionIdentifier.name} with 'require'...`);
           mod.code.body.body.unshift(
-            buildVariableAssignment(requireFunctionIdentifier, {type: 'Identifier', name: 'require'})
+            buildVariableAssignment(requireFunctionIdentifier, { type: 'Identifier', name: 'require' })
           );
         }
       }
@@ -159,14 +161,14 @@ function transformRequires(
             }
           );
         } else if (
-          replaceRequires === 'variable' && 
+          replaceRequires === 'variable' &&
           mod.code && mod.code.body && mod.code.body.body
         ) {
           // At the top of the module closure, set up an alias to the `module` identifier.
           // ie, `const t = module;`
           console.log(`* Aliasing ${moduleIdentifier.name} with 'module'...`);
           mod.code.body.body.unshift(
-            buildVariableAssignment(moduleIdentifier, {type: 'Identifier', name: 'module'})
+            buildVariableAssignment(moduleIdentifier, { type: 'Identifier', name: 'module' })
           );
         }
       }
@@ -184,14 +186,14 @@ function transformRequires(
             }
           );
         } else if (
-          replaceRequires === 'variable' && 
+          replaceRequires === 'variable' &&
           mod.code && mod.code.body && mod.code.body.body
         ) {
           // At the top of the module closure, set up an alias to the module identifier.
           // ie, `const t = module;`
           console.log(`* Aliasing ${exportsIdentifier.name} with 'exports'...`);
           mod.code.body.body.unshift(
-            buildVariableAssignment(exportsIdentifier, {type: 'Identifier', name: 'exports'})
+            buildVariableAssignment(exportsIdentifier, { type: 'Identifier', name: 'exports' })
           );
         }
       }
