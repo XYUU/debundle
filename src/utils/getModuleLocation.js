@@ -8,7 +8,7 @@ function getModuleLocation(
   knownPaths = {},
   pathPrefix = "dist/",
   appendTrailingIndexFilesToNodeModules = false,
-  entryPointModuleId=1,
+  entryPointModuleId = 1,
   pathMapping
 ) {
   let moduleHierarchy;
@@ -105,6 +105,14 @@ function getModuleLocation(
   return filePath;
 }
 
+const pathRegExp = path.sep !== '/' ? /\\/g : null;
+function normalize(path) {
+  if (pathRegExp) {
+    return path.replace(pathRegExp, '/');
+  }
+  return path;
+}
+
 function reverseObject(obj) {
   return Object.keys(obj).reduce((acc, i) => {
     acc[obj[i]] = i; // Reverse keys and values
@@ -112,7 +120,7 @@ function reverseObject(obj) {
   }, {});
 }
 
-module.exports = getModuleLocation;
+module.exports = { getModuleLocation, normalize };
 
 if (require.main === module) {
   let modules = [

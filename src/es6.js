@@ -4,6 +4,7 @@ const path = require('path');
 const escodegen = require('escodegen');
 const { writeFile } = require('./writeToDisk');
 const names = require("./ES6Object");
+const { normalize } = require('./utils/getModuleLocation');
 
 const bundleLocation = path.join("dist/");
 const requirePath = path.join("dist/", "contexts/ES6Object");
@@ -95,7 +96,8 @@ function parse(ast, filePath) {
             }
         });
         if (nodes.length > 0) {
-            let moduleLocation = path.relative(filePath, requirePath)
+            let moduleLocation = normalize(path.relative(filePath, requirePath));
+
             ast.body.splice(start, nodes.length, buildVariableAssignment(nodes, moduleLocation));
             fs.unlinkSync(filePath);
             let code = escodegen.generate(ast, { format: { indent: { style: '  ' } } });

@@ -1,6 +1,6 @@
 const replace = require('./extern/replace-method');
 const path = require('path');
-const getModuleLocation = require('./utils/getModuleLocation');
+const { getModuleLocation, normalize } = require('./utils/getModuleLocation');
 
 // Transform require calls to match the path of a given file.
 // Here's the problem this transformation solves. Say I've got a file `foo` and a file `bar`, and
@@ -76,12 +76,12 @@ function transformRequires(
                   }
 
                   // Get a relative path from the current module to the module to require in.
-                  let moduleLocation = path.relative(
+                  let moduleLocation = normalize(path.relative(
                     // This module's path
                     path.dirname(getModuleLocation(tree, mod, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ true, entryPointModuleId, pathMapping)),
                     // The module to import relative to the current module
                     getModuleLocation(tree, moduleToRequire, knownPaths, path.sep, /* appendTrailingIndexFilesToNodeModules */ false, entryPointModuleId, pathMapping)
-                  );
+                  ));
 
                   // If the module path references a node_module, then remove the node_modules prefix
                   if (moduleLocation.indexOf('node_modules/') !== -1) {
